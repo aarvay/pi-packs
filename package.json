@@ -17,9 +17,6 @@
     "packages/*"
   ],
   "type": "module",
-  "engines": {
-    "bun": ">=1.0.0"
-  },
   "scripts": {
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
@@ -36,5 +33,8 @@
     "oxfmt": "^0.53.0",
     "oxlint": "^1.68.0",
     "typescript": "^5"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

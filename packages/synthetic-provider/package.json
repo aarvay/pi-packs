@@ -3,17 +3,13 @@
   "version": "1.0.0",
   "description": "pi extension for the Synthetic model provider",
   "keywords": [
-    "pi-package",
-    "pi",
     "extension",
-    "synthetic",
     "llm",
-    "provider"
+    "pi",
+    "pi-package",
+    "provider",
+    "synthetic"
   ],
-  "sideEffects": false,
-  "engines": {
-    "bun": ">=1.0.0"
-  },
   "homepage": "https://github.com/aarvay/pi-packs/tree/main/packages/synthetic-provider",
   "bugs": {
     "url": "https://github.com/aarvay/pi-packs/issues"
@@ -31,12 +27,16 @@
     "LICENSE"
   ],
   "type": "module",
+  "sideEffects": false,
   "main": "./index.ts",
   "exports": {
     ".": {
       "types": "./index.ts",
       "default": "./index.ts"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -48,8 +48,8 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
-  "publishConfig": {
-    "access": "public"
+  "engines": {
+    "bun": ">=1.0.0"
   },
   "pi": {
     "extensions": [
