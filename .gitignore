@@ -20,6 +20,4 @@ build/
 *.tgz
 
 # Changesets
-.changeset/*.md
-!.changeset/config.json
-!.changeset/README.md
+# Note: changeset .md files are tracked and committed to version control
