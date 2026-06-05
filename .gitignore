@@ -19,5 +19,8 @@ dist/
 build/
 *.tgz
 
+# Auth files
+.npmrc
+
 # Changesets
 # Note: changeset .md files are tracked and committed to version control
