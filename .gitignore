@@ -1,0 +1,25 @@
+# dependencies (bun install)
+node_modules
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# AI
+.plans/
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Changesets
+.changeset/*.md
+!.changeset/config.json
+!.changeset/README.md

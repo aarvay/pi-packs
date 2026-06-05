@@ -1,0 +1,40 @@
+{
+  "name": "@aarvay/pi-packs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A monorepo of pi extensions",
+  "homepage": "https://github.com/aarvay/pi-packs#readme",
+  "bugs": {
+    "url": "https://github.com/aarvay/pi-packs/issues"
+  },
+  "license": "MIT",
+  "author": "aarvay <aarvay@proton.me>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aarvay/pi-packs.git"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "module",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "typecheck": "bun run --workspaces --if-present typecheck",
+    "changeset": "changeset",
+    "ci:version": "changeset version && bun update",
+    "ci:publish": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0",
+    "@types/bun": "latest",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
+    "typescript": "^5"
+  }
+}
