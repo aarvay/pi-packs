@@ -10,15 +10,15 @@
     "provider",
     "synthetic"
   ],
-  "homepage": "https://github.com/aarvay/pi-packs/tree/main/packages/synthetic-provider",
+  "homepage": "https://codeberg.org/aarvay/pi-packs/tree/main/packages/synthetic-provider",
   "bugs": {
-    "url": "https://github.com/aarvay/pi-packs/issues"
+    "url": "https://codeberg.org/aarvay/pi-packs/issues"
   },
   "license": "MIT",
   "author": "aarvay",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aarvay/pi-packs.git",
+    "url": "git+https://codeberg.org/aarvay/pi-packs.git",
     "directory": "packages/synthetic-provider"
   },
   "files": [
