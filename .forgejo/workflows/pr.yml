@@ -3,6 +3,17 @@ name: PR
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENSE'
+      - 'README.md'
+      - '.changeset/README.md'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
+      - 'packages/*/CHANGELOG.md'
+      - 'packages/*/README.md'
 
 jobs:
   checks:
