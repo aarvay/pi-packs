@@ -33,13 +33,57 @@ jobs:
 
       - name: Version and publish
         if: steps.check.outputs.count > 0
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          bun run ci:version
-          git add -A
-          git commit -m "chore: update versions" || true
-          bun run ci:publish
-          git push origin HEAD:main
-          git push --tags
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # ── Layer 1: Auth goes to HOME only ──
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+          # ── Layer 2: Verify .gitignore defends against .npmrc ──
+          if ! grep -q '^\.npmrc$' .gitignore; then
+            echo "FATAL: .npmrc is not listed in .gitignore"
+            exit 1
+          fi
+
+          # ── Layer 3: Version & update lockfile ──
+          bun run ci:version
+
+          # ── Layer 4: Guard — no auth files leaked into repo root ──
+          for f in .npmrc .env .env.* .netrc .pypirc .yarnrc .npmrc.yml; do
+            if [ -f "$f" ]; then
+              echo "FATAL: Auth file '$f' found in repo root — aborting to prevent leak"
+              exit 1
+            fi
+          done
+
+          # ── Layer 5: Explicit staging (surgical, never blind) ──
+          git add package.json bun.lock
+          find packages -maxdepth 2 -name 'package.json' -exec git add {} +
+          find packages -maxdepth 2 -name 'CHANGELOG.md' -exec git add {} +
+          git add --all .changeset/
+
+          # ── Layer 6: Verify only expected files are staged ──
+          UNEXPECTED=$(git diff --cached --name-only | grep -Ev '^(package\.json|bun\.lock|packages/[^/]+/(package\.json|CHANGELOG\.md)|\.changeset/[^/]+)$' || true)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "FATAL: Unexpected files staged for commit — aborting to prevent leak:"
+            echo "$UNEXPECTED"
+            exit 1
+          fi
+
+          # ── Layer 7: Commit & publish ──
+          git commit -m "chore: update versions" || true
+          bun run ci:publish
+
+          # ── Layer 8: Post-publish guard ──
+          for f in .npmrc .env .env.* .netrc; do
+            if [ -f "$f" ]; then
+              echo "FATAL: Auth file '$f' appeared in repo root after publish"
+              exit 1
+            fi
+          done
+
+          # ── Layer 9: Push ──
+          git push origin HEAD:main
+          git push --tags
