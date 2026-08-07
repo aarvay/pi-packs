@@ -19,6 +19,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push version commits + tags
+      id-token: write # OIDC token for npm trusted publishing
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -36,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
       - name: Check for unreleased changesets
         id: check
         run: |
@@ -44,13 +50,15 @@ jobs:
 
       - name: Version and publish
         if: steps.check.outputs.count > 0
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
 
-          # ── Layer 1: Auth goes to HOME only ──
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          # ── Layer 1: Auth — OIDC trusted publishing (no stored token) ──
+          # npm exchanges GitHub's OIDC token for a per-run credential.
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "FATAL: NPM_TOKEN is set — trusted publishing must not use stored tokens"
+            exit 1
+          fi
 
           # ── Layer 2: Verify .gitignore defends against .npmrc ──
           if ! grep -q '^\.npmrc$' .gitignore; then
@@ -83,9 +91,9 @@ jobs:
             exit 1
           fi
 
-          # ── Layer 7: Commit & publish ──
+          # ── Layer 7: Commit & publish (publishes with provenance) ──
           git commit -m "chore: update versions" || true
-          bun run ci:publish
+          NPM_CONFIG_PROVENANCE=true bun run ci:publish
 
           # ── Layer 8: Post-publish guard ──
           for f in .npmrc .env .env.* .netrc; do
