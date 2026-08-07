@@ -1,32 +1,14 @@
 name: CI
 
+# NOTE: no paths-ignore here. Branch protection requires the CI check on
+# every PR, and GitHub keeps a path-filtered check "Expected" forever,
+# blocking docs-only PRs from merging. CI is fast; always run it.
+# (publish.yml keeps its paths-ignore — pushes aren't gated on checks.)
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "AGENTS.md"
-      - "CONTRIBUTING.md"
-      - "LICENSE"
-      - "README.md"
-      - ".changeset/README.md"
-      - ".editorconfig"
-      - ".gitattributes"
-      - ".gitignore"
-      - "packages/*/CHANGELOG.md"
-      - "packages/*/README.md"
   push:
     branches: [main]
-    paths-ignore:
-      - "AGENTS.md"
-      - "CONTRIBUTING.md"
-      - "LICENSE"
-      - "README.md"
-      - ".changeset/README.md"
-      - ".editorconfig"
-      - ".gitattributes"
-      - ".gitignore"
-      - "packages/*/CHANGELOG.md"
-      - "packages/*/README.md"
 
 # Least privilege: this workflow only ever needs to read the repo.
 permissions:
