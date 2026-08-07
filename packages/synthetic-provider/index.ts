@@ -1,15 +1,25 @@
 /**
  * Synthetic Provider Extension for pi
  *
- * Dynamically discovers available models from the Synthetic API
- * at startup. Models are fetched from the public /models endpoint
- * and registered with their actual pricing, context windows, and capabilities.
+ * Registers a native pi-ai provider. The four stable `syn:*` aliases ship as
+ * the static baseline — no network access while pi loads. When pi refreshes
+ * model catalogs (background refresh at startup, /model dialog, /login,
+ * `pi update --models`), pi-ai fetches the live model list from Synthetic's
+ * public /models endpoint, merges it over the baseline, and persists the
+ * catalog to models-store.json so later sessions restore it instantly, even
+ * offline.
  *
- * Falls back to hardcoded documented models if the API is unreachable.
  * Normalizes context overflow errors so pi can auto-compact and retry.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createProvider, envApiKeyAuth, type Model } from "@earendil-works/pi-ai";
+// The pi-ai package root exports the core provider surface (createProvider,
+// envApiKeyAuth, types) but not the per-API stream factories. Those live
+// behind the /compat subpath export, which re-exports api/*.lazy.js. This
+// split matches pi-coding-agent's own imports (core from the root, per-API
+// wrappers from /compat) and is the only place openAICompletionsApi exists.
+import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 
 // =============================================================================
 // Types
@@ -35,7 +45,20 @@ interface SyntheticModel {
     input_cache_writes: string;
   };
   supported_features?: string[];
+  reasoning_parameters?: {
+    efforts?: string[];
+  };
 }
+
+type SyntheticApi = "openai-completions";
+type SyntheticModelConfig = Model<SyntheticApi>;
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const PROVIDER_ID = "synthetic";
+const BASE_URL = "https://api.synthetic.new/openai/v1";
 
 // =============================================================================
 // Helpers
@@ -74,34 +97,66 @@ function getInputTypes(modalities: string[]): ("text" | "image")[] {
   return input;
 }
 
-/** Check if the model advertises reasoning support. */
-function modelSupportsReasoning(features: string[] | undefined): boolean {
-  return features?.includes("reasoning") ?? false;
+/**
+ * Build a pi thinkingLevelMap from the model's advertised reasoning efforts
+ * (e.g. ["none", "high", "max"]). Levels the model does not advertise are
+ * null, which hides them in the UI. pi passes the mapped string through as
+ * `reasoning_effort`, so provider-native values like "none" and "max" work
+ * directly.
+ *
+ * Returns undefined when the model does not support reasoning.
+ */
+function buildThinkingLevelMap(
+  model: SyntheticModel,
+): SyntheticModelConfig["thinkingLevelMap"] | undefined {
+  const reasoning = model.supported_features?.includes("reasoning") ?? false;
+  if (!reasoning) return undefined;
+
+  const supported = new Set(model.reasoning_parameters?.efforts ?? ["low", "medium", "high"]);
+
+  return {
+    off: supported.has("none") ? "none" : null,
+    minimal: supported.has("minimal") ? "minimal" : null,
+    low: supported.has("low") ? "low" : null,
+    medium: supported.has("medium") ? "medium" : null,
+    high: supported.has("high") ? "high" : null,
+    xhigh: supported.has("xhigh") ? "xhigh" : null,
+    max: supported.has("max") ? "max" : null,
+  };
 }
 
-const FETCH_TIMEOUT_MS = 10_000;
+/** Convert a Synthetic API model entry into a pi-ai model. */
+function toModel(model: SyntheticModel): SyntheticModelConfig {
+  const reasoning = model.supported_features?.includes("reasoning") ?? false;
 
-/**
- * Fetch with a hard deadline. The returned promise rejects if the deadline
- * expires before the response headers arrive.
- */
-function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort(new Error(`Fetch timed out after ${timeoutMs}ms`));
-  }, timeoutMs);
-
-  return fetch(url, { signal: controller.signal }).finally(() => {
-    clearTimeout(timeoutId);
-  });
+  return {
+    id: model.id,
+    name: model.name,
+    api: "openai-completions",
+    provider: PROVIDER_ID,
+    baseUrl: BASE_URL,
+    reasoning,
+    input: getInputTypes(model.input_modalities),
+    cost: {
+      input: parsePrice(model.pricing?.prompt),
+      output: parsePrice(model.pricing?.completion),
+      cacheRead: parsePrice(model.pricing?.input_cache_reads),
+      cacheWrite: parsePrice(model.pricing?.input_cache_writes),
+    },
+    contextWindow: model.context_length ?? 128000,
+    maxTokens: model.max_output_length ?? 16384,
+    compat: {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: reasoning,
+      thinkingFormat: "openai" as const,
+    },
+    thinkingLevelMap: buildThinkingLevelMap(model),
+  };
 }
 
 /** Fetch the live model list from Synthetic. */
-async function fetchModels(): Promise<SyntheticModel[]> {
-  const response = await fetchWithTimeout(
-    "https://api.synthetic.new/openai/v1/models",
-    FETCH_TIMEOUT_MS,
-  );
+async function fetchSyntheticModels(signal: AbortSignal): Promise<SyntheticModelConfig[]> {
+  const response = await fetch(`${BASE_URL}/models`, { signal });
 
   if (!response.ok) {
     const text = await response.text().catch(() => "unknown error");
@@ -118,139 +173,116 @@ async function fetchModels(): Promise<SyntheticModel[]> {
     throw new Error("Synthetic /models returned empty model list");
   }
 
-  return models;
+  return models.map(toModel);
 }
 
 // =============================================================================
-// Hardcoded fallback models (from https://dev.synthetic.new/docs/api/overview)
+// Static baseline
+//
+// The four documented `syn:*` aliases, always registered so the provider works
+// fully offline and pi startup never blocks on the network. Aliases auto-route
+// to Synthetic's latest recommended model per category, so the IDs stay valid
+// even as underlying models change. The dynamic catalog (aliases plus direct
+// hf:* models) merges over this list on refresh and persists to
+// models-store.json, correcting any stale metadata below.
+//
+// Snapshot of https://api.synthetic.new/openai/v1/models, 2026-06.
 // =============================================================================
 
-const HARDCODED_MODELS: SyntheticModel[] = [
-  {
+function staticModel(
+  input: Pick<SyntheticModelConfig, "id" | "input" | "contextWindow"> & {
+    cost: Pick<SyntheticModelConfig["cost"], "input" | "output" | "cacheRead">;
+    efforts: {
+      off: string | null;
+      low: string | null;
+      medium: string | null;
+      high: string | null;
+      max: string | null;
+    };
+  },
+): SyntheticModelConfig {
+  return {
+    name: input.id,
+    api: "openai-completions",
+    provider: PROVIDER_ID,
+    baseUrl: BASE_URL,
+    reasoning: true,
+    maxTokens: 65536,
+    compat: {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: true,
+      thinkingFormat: "openai" as const,
+    },
+    thinkingLevelMap: {
+      off: input.efforts.off,
+      minimal: null,
+      low: input.efforts.low,
+      medium: input.efforts.medium,
+      high: input.efforts.high,
+      xhigh: null,
+      max: input.efforts.max,
+    },
+    id: input.id,
+    input: input.input,
+    contextWindow: input.contextWindow,
+    cost: { ...input.cost, cacheWrite: 0 },
+  };
+}
+
+const STATIC_MODELS: SyntheticModelConfig[] = [
+  staticModel({
     id: "syn:large:text",
-    name: "Synthetic Large (Text)",
-    input_modalities: ["text"],
-    output_modalities: ["text"],
-    context_length: 196608,
-    max_output_length: 65536,
-    pricing: {
-      prompt: "$0.000001",
-      completion: "$0.000003",
-      image: "0",
-      request: "0",
-      input_cache_reads: "$0.000001",
-      input_cache_writes: "0",
-    },
-    supported_features: ["tools", "json_mode", "structured_outputs", "reasoning"],
-  },
-  {
+    input: ["text"],
+    contextWindow: 524288,
+    cost: { input: 1.0, output: 3.0, cacheRead: 0.16 },
+    efforts: { off: "none", low: null, medium: null, high: "high", max: "max" },
+  }),
+  staticModel({
     id: "syn:small:text",
-    name: "Synthetic Small (Text)",
-    input_modalities: ["text"],
-    output_modalities: ["text"],
-    context_length: 196608,
-    max_output_length: 65536,
-    pricing: {
-      prompt: "$0.0000001",
-      completion: "$0.0000005",
-      image: "0",
-      request: "0",
-      input_cache_reads: "$0.0000001",
-      input_cache_writes: "0",
-    },
-    supported_features: ["tools", "json_mode", "structured_outputs", "reasoning"],
-  },
-  {
+    input: ["text"],
+    contextWindow: 196608,
+    cost: { input: 0.1, output: 0.5, cacheRead: 0.02 },
+    efforts: { off: "none", low: "low", medium: "medium", high: "high", max: null },
+  }),
+  staticModel({
     id: "syn:large:vision",
-    name: "Synthetic Large (Vision)",
-    input_modalities: ["text", "image"],
-    output_modalities: ["text"],
-    context_length: 262144,
-    max_output_length: 65536,
-    pricing: {
-      prompt: "$0.00000095",
-      completion: "$0.000004",
-      image: "0",
-      request: "0",
-      input_cache_reads: "$0.00000095",
-      input_cache_writes: "0",
-    },
-    supported_features: ["tools", "json_mode", "structured_outputs", "reasoning"],
-  },
-  {
+    input: ["text", "image"],
+    contextWindow: 524288,
+    cost: { input: 3.0, output: 15.0, cacheRead: 0.45 },
+    // No "none" effort: thinking cannot be disabled on this model.
+    efforts: { off: null, low: "low", medium: null, high: "high", max: "max" },
+  }),
+  staticModel({
     id: "syn:small:vision",
-    name: "Synthetic Small (Vision)",
-    input_modalities: ["text", "image"],
-    output_modalities: ["text"],
-    context_length: 262144,
-    max_output_length: 65536,
-    pricing: {
-      prompt: "$0.00000045",
-      completion: "$0.0000036",
-      image: "0",
-      request: "0",
-      input_cache_reads: "$0.00000045",
-      input_cache_writes: "0",
-    },
-    supported_features: ["tools", "json_mode", "structured_outputs", "reasoning"],
-  },
+    input: ["text", "image"],
+    contextWindow: 262144,
+    cost: { input: 0.45, output: 2.2, cacheRead: 0.09 },
+    efforts: { off: "none", low: "low", medium: "medium", high: "high", max: null },
+  }),
 ];
 
 // =============================================================================
 // Extension Entry Point
 // =============================================================================
 
-export default async function (pi: ExtensionAPI) {
-  let syntheticModels: SyntheticModel[];
-  try {
-    syntheticModels = await fetchModels();
-  } catch (err) {
-    console.error("Synthetic provider: failed to fetch models, using hardcoded fallback:", err);
-    syntheticModels = HARDCODED_MODELS;
-  }
-
-  const models = syntheticModels.map((model) => {
-    const reasoning = modelSupportsReasoning(model.supported_features);
-
-    return {
-      id: model.id,
-      name: model.name,
-      reasoning,
-      input: getInputTypes(model.input_modalities),
-      cost: {
-        input: parsePrice(model.pricing?.prompt),
-        output: parsePrice(model.pricing?.completion),
-        cacheRead: parsePrice(model.pricing?.input_cache_reads),
-        cacheWrite: parsePrice(model.pricing?.input_cache_writes),
+export default function (pi: ExtensionAPI) {
+  pi.registerProvider(
+    createProvider({
+      id: PROVIDER_ID,
+      name: "Synthetic",
+      baseUrl: BASE_URL,
+      auth: {
+        // Stored auth.json key wins, then $SYNTHETIC_API_KEY; /login prompts.
+        apiKey: envApiKeyAuth("Synthetic API key", ["SYNTHETIC_API_KEY"]),
       },
-      contextWindow: model.context_length ?? 128000,
-      maxTokens: model.max_output_length ?? 16384,
-      compat: {
-        supportsDeveloperRole: false,
-        supportsReasoningEffort: reasoning,
-        thinkingFormat: "openai" as const,
-      },
-      thinkingLevelMap: reasoning
-        ? {
-            off: null,
-            minimal: null,
-            low: "low",
-            medium: "medium",
-            high: "high",
-            xhigh: null,
-          }
-        : undefined,
-    };
-  });
-
-  pi.registerProvider("synthetic", {
-    name: "Synthetic",
-    baseUrl: "https://api.synthetic.new/openai/v1",
-    apiKey: "$SYNTHETIC_API_KEY",
-    authHeader: true,
-    api: "openai-completions",
-    models,
-  });
+      models: STATIC_MODELS,
+      // pi-ai owns the refresh lifecycle: restores the persisted catalog
+      // during the offline phase, calls this when network access is allowed,
+      // and persists the result to models-store.json.
+      fetchModels: async ({ signal }) => fetchSyntheticModels(signal),
+      api: openAICompletionsApi(),
+    }),
+  );
 
   pi.on("message_end", (event, ctx) => {
     const { message } = event;
@@ -260,7 +292,7 @@ export default async function (pi: ExtensionAPI) {
     if (message.stopReason !== "error") return;
 
     // Scope to the Synthetic provider only.
-    if (message.provider !== "synthetic" && ctx.model?.provider !== "synthetic") {
+    if (message.provider !== PROVIDER_ID && ctx.model?.provider !== PROVIDER_ID) {
       return;
     }
 

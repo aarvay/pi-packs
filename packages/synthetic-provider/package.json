@@ -42,10 +42,12 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.84.1",
     "@earendil-works/pi-coding-agent": "latest",
     "typescript": "^5"
   },
   "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*"
   },
   "engines": {

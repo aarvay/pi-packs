@@ -25,12 +25,14 @@ pi install -l npm:@aarvay/pi-synthetic-provider
 
 ## Features
 
-- Dynamically discovers available models from Synthetic's public `/models`
-  endpoint at startup
-- Falls back to hardcoded documented models if the fetch fails
-- Supports text and image input models
+- Registers the four stable `syn:*` aliases synchronously at startup — no
+  network calls while pi loads, works fully offline
+- Refreshes the full live catalog (aliases plus direct `hf:*` models) whenever
+  pi refreshes model catalogs: background refresh at startup, opening the
+  `/model` dialog, `/login`, or `pi update --models`
+- Per-model thinking levels derived from Synthetic's advertised reasoning
+  efforts, including `max` on models that support it
 - Tracks per-token pricing for cost estimation
-- Handles reasoning/thinking levels
 - Normalizes context overflow errors for automatic compaction and retry
 
 ## Authentication
@@ -50,13 +52,17 @@ Synthetic requires an API key for inference. pi resolves the key in this priorit
 
 ## Models
 
-The extension exposes all models returned by Synthetic's API. The documented
-aliases are:
+The static aliases are always available:
 
-- `syn:large:text` — Large text model (GLM-5.1)
-- `syn:small:text` — Small text model (GLM-4.7-Flash)
-- `syn:large:vision` — Large vision model (Kimi-K2.6)
-- `syn:small:vision` — Small vision model (Qwen3.6-27B)
+- `syn:large:text` — Large text model (currently GLM-5.2)
+- `syn:small:text` — Small text model (currently GLM-4.7-Flash)
+- `syn:large:vision` — Large vision model (currently Kimi-K3)
+- `syn:small:vision` — Small vision model (currently Qwen3.6-27B)
+
+Aliases automatically route to Synthetic's latest recommended model per
+category. After any model refresh, the full live catalog — including direct
+`hf:*` models — appears alongside the aliases. Run `pi update --models` to
+refresh on demand, or open `/model` in an interactive session.
 
 Use `/model` in pi to select a model.
 
@@ -70,12 +76,14 @@ pi -e ./packages/synthetic-provider
 
 ## Troubleshooting
 
-**Models not loading:** If the Synthetic API is unreachable at startup, the
-extension falls back to hardcoded models. Check your network connection with:
+**Models not updating:** The live catalog is fetched during pi's model
+refresh, not at startup. Run `pi update --models`, or check your network:
 
 ```bash
 curl https://api.synthetic.new/openai/v1/models
 ```
+
+The four static aliases remain available even when the API is unreachable.
 
 **API key errors:** Verify your key is set via `echo $SYNTHETIC_API_KEY` or
 configured in `~/.pi/agent/auth.json`.
