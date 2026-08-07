@@ -36,7 +36,7 @@ interface SyntheticModel {
   output_modalities: string[];
   context_length: number;
   max_output_length: number;
-  pricing: {
+  pricing?: {
     prompt: string;
     completion: string;
     image: string;
@@ -160,7 +160,7 @@ async function fetchSyntheticModels(signal: AbortSignal): Promise<SyntheticModel
 
   if (!response.ok) {
     const text = await response.text().catch(() => "unknown error");
-    throw new Error(`Synthetic /models returned ${response.status}: ${text}`);
+    throw new Error(`Synthetic /models returned ${response.status}: ${text.slice(0, 200)}`);
   }
 
   const payload = (await response.json()) as unknown;

@@ -61,10 +61,12 @@ versioning and publishing.
 2. Select affected packages and bump type (`patch`, `minor`, or `major`)
 3. Write a changeset summary describing the change
 4. Commit the generated `.changeset/*.md` file with your PR
-5. When a PR with changesets merges to `main`, the **Version Packages**
-   workflow opens (or updates) a "chore: update versions" PR containing the
-   version bumps and generated changelogs. That PR runs CI like any other.
-6. When a maintainer merges the version PR, the **Publish** workflow:
+5. When a PR with changesets merges to `main`, the **Publish** workflow's
+   `version` job opens (or updates) a "chore: update versions" PR containing
+   the version bumps and generated changelogs. That PR runs CI like any
+   other.
+6. When a maintainer merges the version PR, the **Publish** workflow's
+   `pack` + `publish` jobs:
    - Publishes to npm via [OIDC trusted
      publishing](https://docs.npmjs.com/trusted-publishers) — no npm tokens
      are stored anywhere; each publish uses a short-lived credential bound to
