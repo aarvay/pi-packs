@@ -24,7 +24,7 @@
     "fmt:check": "oxfmt --check",
     "typecheck": "bun run --workspaces --if-present typecheck",
     "changeset": "changeset",
-    "ci:version": "changeset version && bun update",
+    "ci:version": "changeset version && bun install --lockfile-only",
     "ci:publish": "changeset publish"
   },
   "devDependencies": {
