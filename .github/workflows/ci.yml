@@ -41,9 +41,10 @@ jobs:
   checks:
     name: CI
     runs-on: ubuntu-latest
-    # Never run on the bot-authored version PR — versioning is validated
-    # by the action; the publish workflow is its consumer.
-    if: github.head_ref != 'changeset-release/main'
+    # Deliberately runs on the bot-authored version PR too: the publish
+    # workflow consumes exactly what that PR contains, so it must be green.
+    # The release-bot App token makes this possible (GITHUB_TOKEN-authored
+    # PRs would never trigger this workflow).
     steps:
       # NOTE: no credential persistence — the token is not written to
       # .git/config, so later steps can't exfiltrate it via git.
@@ -78,6 +79,9 @@ jobs:
       - name: Validate package.json formatting
         run: bunx prettier --check "package.json" "packages/*/package.json"
 
+      # Blocking changeset check (docs: "Blocking" approach): fails when
+      # packages changed but no changeset was added. Use
+      # `changeset --empty` for intentionally unreleased changes.
       - name: Check changeset
         run: bunx changeset status --since=origin/main
 

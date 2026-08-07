@@ -24,12 +24,12 @@
     "fmt:check": "oxfmt --check",
     "typecheck": "bun run --workspaces --if-present typecheck",
     "changeset": "changeset",
-    "ci:version": "changeset version && bun update",
+    "ci:version": "changeset version && bun install --lockfile-only",
     "ci:publish": "changeset publish"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.1",
+    "@changesets/changelog-github": "^1.0.0-next.9",
+    "@changesets/cli": "^3.0.0-next.11",
     "@types/bun": "latest",
     "oxfmt": "^0.53.0",
     "oxlint": "^1.77.0",

@@ -1,8 +1,20 @@
 name: Publish
 
-# Publishes to npm via OIDC trusted publishing (no stored tokens), pushes
-# signed tags, and creates GitHub Releases. Only ever does work right after a
-# "Version Packages" PR is merged; otherwise it's a no-op.
+# Release pipeline, following the official Changesets v3 architecture:
+# https://changesets.dev/guide/automating
+#
+#   select-mode ─┬─ mode=version → version job → opens/updates the
+#   on every     │                    "Version Packages" PR (authored by the
+#   push to main │                    release-bot GitHub App so CI runs on it)
+#                │
+#                └─ mode=publish  → pack job (no id-token, builds tarballs)
+#                                  → publish job (id-token, npm OIDC trusted
+#                                    publishing, tags + GitHub Releases)
+#
+# Requires the release-bot GitHub App (secrets.RELEASE_BOT_APP_ID /
+# secrets.RELEASE_BOT_PRIVATE_KEY) with contents:write + pull-requests:write
+# on this repo, and a trusted publisher configured on npmjs.com pointing at
+# this repo, this workflow file, and (if set) the "npm" environment.
 
 on:
   push:
@@ -19,22 +31,158 @@ on:
       - "packages/*/CHANGELOG.md"
       - "packages/*/README.md"
 
-permissions:
-  contents: read
+# Reset to nothing; every job below declares exactly what it needs.
+permissions: {}
 
+# Never run two release pipelines for main concurrently.
 concurrency:
-  group: publish-main
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Decides what this push means for the release pipeline:
+  #   version — unreleased changesets exist → (re)create the version PR
+  #   publish — no changesets but unpublished versions exist → publish them
+  #   none    — nothing to do
+  select-mode:
     runs-on: ubuntu-latest
-    # GitHub Environment: gives a separate audit trail for publishes and lets
-    # you add required reviewers later without touching this file. If you set
-    # an environment name on the npmjs.com trusted publisher, it must be "npm".
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+      publish-plan-artifact-id: ${{ steps.select-mode.outputs.publish-plan-artifact-id }}
+    permissions:
+      contents: read # actions/checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history + tags so publish-plan can diff against published versions
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.5"
+
+      # The action shells out to `node <changesets cli>`; setup-bun does not
+      # provide node, so install it explicitly. Changesets v3 requires
+      # Node ^22.11 || ^24 || >=26.
+      - name: Setup Node (Changesets CLI runtime)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          package-manager-cache: false # no caching in release jobs: avoid cache poisoning
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Select Changesets mode
+        id: select-mode
+        uses: changesets/action/select-mode@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
+
+  # Opens or updates the "Version Packages" PR when changesets land on main.
+  version:
+    if: needs.select-mode.outputs.mode == 'version'
+    needs: select-mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # actions/checkout; writes go through the bot token below
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.5"
+
+      - name: Setup Node (Changesets CLI runtime)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Mint a short-lived token for the release-bot GitHub App. PRs created
+      # with the default GITHUB_TOKEN do not trigger workflows; an App token
+      # does, so CI runs on the version PR and branch protection is satisfied.
+      # The token expires with the job and is scoped to this repo only.
+      - name: Mint release-bot token
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write # push version commits
+          permission-pull-requests: write # create/update the version PR
+
+      # Via the GitHub API (default), commits are signed with GitHub's GPG key
+      # and attributed to the app. No [skip ci] in the message: CI must run on
+      # the version PR.
+      - name: Create or update version PR
+        uses: changesets/action/version@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
+        with:
+          github-token: ${{ steps.bot.outputs.token }}
+          script: bun run ci:version
+          commit-message: "chore: update versions"
+          pr-title: "chore: update versions"
+
+  # Packs tarballs in a job WITHOUT id-token, so the artifacts that will be
+  # published are produced in an unprivileged environment. Runs on the exact
+  # publish plan that select-mode computed from this commit.
+  pack:
+    if: needs.select-mode.outputs.mode == 'publish'
+    needs: select-mode
+    runs-on: ubuntu-latest
+    outputs:
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    permissions:
+      contents: read # actions/checkout
+      actions: read # download the publish-plan artifact
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.5"
+
+      - name: Setup Node (Changesets CLI runtime)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Pack packages
+        id: pack
+        uses: changesets/action/pack@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
+        with:
+          publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+
+  # Publishes the pre-packed tarballs via npm OIDC trusted publishing (no
+  # stored tokens), pushes git tags, and creates GitHub Releases. This is the
+  # ONLY job in the repo with id-token: write.
+  publish:
+    if: needs.select-mode.outputs.mode == 'publish'
+    needs: [select-mode, pack]
+    runs-on: ubuntu-latest
+    # GitHub Environment "npm": separate audit trail for publishes; optional
+    # required reviewers can gate publishing without touching this file. If an
+    # environment is set on the npmjs.com trusted publisher, it must be "npm".
     environment: npm
     permissions:
       contents: write # push tags + create releases (via API, GitHub-GPG-signed)
+      actions: read # download the pack artifact
       id-token: write # OIDC token for npm trusted publishing — ONLY this job
     steps:
       - name: Checkout
@@ -48,17 +196,18 @@ jobs:
         with:
           bun-version: "1.3.5"
 
-      # npm trusted publishing requires npm CLI >= 11.5.1 and Node >= 22.14.
-      # changesets shells out to `npm publish`, which then uses the OIDC
-      # exchange automatically.
-      - name: Setup Node (for npm CLI)
+      # npm trusted publishing requires npm CLI >= 11.5.1; changesets shells
+      # out to `npm publish`, which performs the OIDC exchange automatically.
+      - name: Setup Node (npm CLI + Changesets CLI runtime)
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
+          package-manager-cache: false
 
       - name: Upgrade npm for trusted publishing
         run: npm install -g npm@latest
 
+      # Trusted publishing must never fall back to a stored token.
       - name: Fail closed if a stored npm token exists
         run: |
           if [ -n "${NPM_TOKEN:-}" ] || [ -n "${NODE_AUTH_TOKEN:-}" ]; then
@@ -69,13 +218,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Publishes only when HEAD is a version bump with pending changes;
-      # otherwise exits cleanly as a no-op. Creates a GitHub Release per
-      # published package with its changelog entry as the body.
+      # Publishes the tarballs built in the pack job, then pushes annotated
+      # tags and creates a GitHub Release per published package with its
+      # changelog entry as the body.
       - name: Publish to npm
         uses: changesets/action/publish@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
         with:
-          script: bun run ci:publish
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
           create-github-releases: true
