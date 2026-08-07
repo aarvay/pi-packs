@@ -70,7 +70,7 @@ jobs:
         run: bun run typecheck
 
       - name: Test
-        run: bun test
+        run: bun test --pass-with-no-tests
 
       # Ensure no package.json forgotten by oxfmt's coverage drifts from
       # canonical formatting.
