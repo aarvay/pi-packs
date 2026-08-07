@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm](https://img.shields.io/npm/v/@aarvay/pi-synthetic-provider)](https://www.npmjs.com/package/@aarvay/pi-synthetic-provider)
-[![CI](https://github.com/aarvay/pi-packs/actions/workflows/release.yml/badge.svg)](https://github.com/aarvay/pi-packs/actions/workflows/release.yml)
+[![CI](https://github.com/aarvay/pi-packs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aarvay/pi-packs/actions/workflows/ci.yml)
 
 A monorepo of my [pi](https://pi.ai) packages — extensions, skills, and custom
 model providers.
