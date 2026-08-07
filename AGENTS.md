@@ -18,7 +18,16 @@ Default to using Bun instead of Node.js.
 ## CI/CD
 
 This repo's primary forge is **GitHub**. CI workflows live exclusively in
-`.github/workflows/`. There is no `.forgejo/` directory. Do not assume
+`.github/workflows/`:
+
+- `ci.yml` — format/lint/typecheck/changeset checks on PRs and pushes to `main`
+- `version.yml` — opens/updates the "version packages" PR when changesets land
+  on `main`
+- `publish.yml` — publishes to npm via OIDC trusted publishing (no stored
+  tokens), pushes signed tags, and creates GitHub Releases
+
+`main` is protected: PRs are required, the `CI` check must pass, and merges
+are squash-only. There is no `.forgejo/` directory. Do not assume
 Forgejo/Codeberg Actions or recommend Forgejo-specific workflows.
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.

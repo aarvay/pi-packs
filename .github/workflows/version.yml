@@ -1,0 +1,65 @@
+name: Version Packages
+
+# Opens (or updates) a "Version Packages" PR whenever unreleased changesets
+# land on main. The PR is authored by the release-bot GitHub App, so CI runs
+# on it like any human PR. Merging it triggers publish.yml.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "AGENTS.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE"
+      - "README.md"
+      - ".changeset/README.md"
+      - ".editorconfig"
+      - ".gitattributes"
+      - ".gitignore"
+      - "packages/*/CHANGELOG.md"
+      - "packages/*/README.md"
+
+# Deliberately NO id-token here: this workflow cannot publish to npm.
+permissions:
+  contents: read # base token stays read-only; the bot token carries the write scope
+
+concurrency:
+  group: version-main
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history + tags for changesets versioning
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.5"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Mint a short-lived (1h) token for the release-bot GitHub App. Scoped to
+      # contents+pull-requests on this repo only; revoked when the job ends.
+      - name: Mint release-bot token
+        id: bot
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      # The bot token authors the version PR via the GitHub API, so the PR
+      # triggers CI and its commits are signed with GitHub's GPG key.
+      - name: Create or update version PR
+        uses: changesets/action/version@cae63535198362487bf613d7940dbc74b12d7313 # v2
+        with:
+          github-token: ${{ steps.bot.outputs.token }}
+          version: bun run ci:version
+          commit-message: "chore: update versions"
+          title: "chore: update versions"

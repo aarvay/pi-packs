@@ -1,0 +1,81 @@
+name: Publish
+
+# Publishes to npm via OIDC trusted publishing (no stored tokens), pushes
+# signed tags, and creates GitHub Releases. Only ever does work right after a
+# "Version Packages" PR is merged; otherwise it's a no-op.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "AGENTS.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE"
+      - "README.md"
+      - ".changeset/README.md"
+      - ".editorconfig"
+      - ".gitattributes"
+      - ".gitignore"
+      - "packages/*/CHANGELOG.md"
+      - "packages/*/README.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # GitHub Environment: gives a separate audit trail for publishes and lets
+    # you add required reviewers later without touching this file. If you set
+    # an environment name on the npmjs.com trusted publisher, it must be "npm".
+    environment: npm
+    permissions:
+      contents: write # push tags + create releases (via API, GitHub-GPG-signed)
+      id-token: write # OIDC token for npm trusted publishing — ONLY this job
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history + tags for changesets publish
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.5"
+
+      # npm trusted publishing requires npm CLI >= 11.5.1 and Node >= 22.14.
+      # changesets shells out to `npm publish`, which then uses the OIDC
+      # exchange automatically.
+      - name: Setup Node (for npm CLI)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Fail closed if a stored npm token exists
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ] || [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "FATAL: an npm token is set — trusted publishing must not use stored tokens"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Publishes only when HEAD is a version bump with pending changes;
+      # otherwise exits cleanly as a no-op. Creates a GitHub Release per
+      # published package with its changelog entry as the body.
+      - name: Publish to npm
+        uses: changesets/action/publish@cae63535198362487bf613d7940dbc74b12d7313 # v2
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+        with:
+          publish: bun run ci:publish
+          create-github-releases: true
