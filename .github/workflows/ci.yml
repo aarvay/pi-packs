@@ -82,7 +82,10 @@ jobs:
       # Blocking changeset check (docs: "Blocking" approach): fails when
       # packages changed but no changeset was added. Use
       # `changeset --empty` for intentionally unreleased changes.
+      # Skipped on the version PR: versioning consumes the changesets, so
+      # this check is meaningless there by construction.
       - name: Check changeset
+        if: github.head_ref != 'changeset-release/main'
         run: bunx changeset status --since=origin/main
 
   actionlint:
