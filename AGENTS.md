@@ -21,10 +21,10 @@ This repo's primary forge is **GitHub**. CI workflows live exclusively in
 `.github/workflows/`:
 
 - `ci.yml` — format/lint/typecheck/changeset checks on PRs and pushes to `main`
-- `version.yml` — opens/updates the "version packages" PR when changesets land
-  on `main`
-- `publish.yml` — publishes to npm via OIDC trusted publishing (no stored
-  tokens), pushes signed tags, and creates GitHub Releases
+- `publish.yml` — the release pipeline. `changesets/action/select-mode`
+  decides per push to `main`: open/update the "version packages" PR, or pack
+  and publish to npm via OIDC trusted publishing (no stored tokens), push
+  signed tags, and create GitHub Releases
 
 `main` is protected: PRs are required, the `CI` check must pass, and merges
 are squash-only. There is no `.forgejo/` directory. Do not assume
