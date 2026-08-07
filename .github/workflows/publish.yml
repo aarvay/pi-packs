@@ -73,9 +73,9 @@ jobs:
       # otherwise exits cleanly as a no-op. Creates a GitHub Release per
       # published package with its changelog entry as the body.
       - name: Publish to npm
-        uses: changesets/action/publish@cae63535198362487bf613d7940dbc74b12d7313 # v2
+        uses: changesets/action/publish@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
         env:
           NPM_CONFIG_PROVENANCE: "true"
         with:
-          publish: bun run ci:publish
+          script: bun run ci:publish
           create-github-releases: true
