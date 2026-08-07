@@ -49,7 +49,10 @@ default).
 - [ ] `bun run lint` passes
 - [ ] `bun run fmt:check` passes
 - [ ] `bun run typecheck` passes (if your package has a typecheck script)
-- [ ] A changeset exists if you touched `packages/` (see below)
+- [ ] If your change should be released, add a changeset (see below). The
+      Changesets bot comments on every PR with its changeset status — this is
+      informational, not a merge blocker. Docs/test/build-only changes don't
+      need one.
 - [ ] Documentation is updated (README, root package table)
 
 ## Releasing
