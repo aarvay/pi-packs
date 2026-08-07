@@ -3,25 +3,45 @@
 pi extension that registers [Synthetic](https://synthetic.new) as a custom model
 provider.
 
-## Installation
+## Getting Started
 
-Try it once without installing:
+1. Get an API key from [Synthetic](https://synthetic.new).
 
-```bash
-pi -e npm:@aarvay/pi-synthetic-provider
-```
+2. Install the extension into your user settings:
 
-Install permanently into your user settings:
+   ```bash
+   pi install npm:@aarvay/pi-synthetic-provider
+   ```
 
-```bash
-pi install npm:@aarvay/pi-synthetic-provider
-```
+   Or install into a project (`.pi/settings.json`):
 
-Or install into a project (`.pi/settings.json`):
+   ```bash
+   pi install -l npm:@aarvay/pi-synthetic-provider
+   ```
 
-```bash
-pi install -l npm:@aarvay/pi-synthetic-provider
-```
+   Or try it once without installing:
+
+   ```bash
+   pi -e npm:@aarvay/pi-synthetic-provider
+   ```
+
+3. Start pi and log in with your key:
+
+   ```
+   /login
+   ```
+
+   Select **Synthetic** and paste your API key when prompted. Headless
+   alternative: set the `SYNTHETIC_API_KEY` environment variable instead.
+
+4. Pick a model:
+
+   ```
+   /model
+   ```
+
+   The four `syn:*` aliases are listed immediately; the full live catalog
+   (including direct `hf:*` models) appears after the first refresh.
 
 ## Features
 
@@ -37,9 +57,11 @@ pi install -l npm:@aarvay/pi-synthetic-provider
 
 ## Authentication
 
-Synthetic requires an API key for inference. pi resolves the key in this priority order:
+Synthetic requires an API key for inference. The easiest way to provide it is
+`/login` inside pi — select **Synthetic** and paste the key. pi resolves the
+key in this priority order:
 
-1. `~/.pi/agent/auth.json` entry:
+1. `~/.pi/agent/auth.json` entry (written by `/login`):
    ```json
    {
      "synthetic": {
@@ -64,7 +86,8 @@ category. After any model refresh, the full live catalog — including direct
 `hf:*` models — appears alongside the aliases. Run `pi update --models` to
 refresh on demand, or open `/model` in an interactive session.
 
-Use `/model` in pi to select a model.
+Use `/model` in pi to select a model. If inference fails with an auth error,
+run `/login` first (see Getting Started).
 
 ## Development
 
@@ -85,8 +108,8 @@ curl https://api.synthetic.new/openai/v1/models
 
 The four static aliases remain available even when the API is unreachable.
 
-**API key errors:** Verify your key is set via `echo $SYNTHETIC_API_KEY` or
-configured in `~/.pi/agent/auth.json`.
+**API key errors:** Run `/login` and re-enter your Synthetic key, or verify
+the environment variable with `echo $SYNTHETIC_API_KEY`.
 
 ## License
 
