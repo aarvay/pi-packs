@@ -1,5 +1,13 @@
 # @aarvay/pi-synthetic-provider
 
+## 1.1.1
+
+### Patch Changes
+
+- [#4](https://github.com/aarvay/pi-packs/pull/4) [`aa7f973`](https://github.com/aarvay/pi-packs/commit/aa7f9734f035ed360e78e474f6e88c95291bd415) Thanks [@aarvay](https://github.com/aarvay)! - Truncate error response bodies from the /models fetch to 200 characters so
+  failures stay readable, and mark `pricing` optional in the response type to
+  match the defensive parsing already in place.
+
 ## 1.1.0
 
 ### Minor Changes

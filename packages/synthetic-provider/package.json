@@ -1,6 +1,6 @@
 {
   "name": "@aarvay/pi-synthetic-provider",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "pi extension for the Synthetic model provider",
   "keywords": [
     "extension",
