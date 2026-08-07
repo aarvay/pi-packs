@@ -14,12 +14,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createProvider, envApiKeyAuth, type Model } from "@earendil-works/pi-ai";
-// The pi-ai package root exports the core provider surface (createProvider,
-// envApiKeyAuth, types) but not the per-API stream factories. Those live
-// behind the /compat subpath export, which re-exports api/*.lazy.js. This
-// split matches pi-coding-agent's own imports (core from the root, per-API
-// wrappers from /compat) and is the only place openAICompletionsApi exists.
-import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 
 // =============================================================================
 // Types
