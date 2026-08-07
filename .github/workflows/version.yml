@@ -57,9 +57,9 @@ jobs:
       # The bot token authors the version PR via the GitHub API, so the PR
       # triggers CI and its commits are signed with GitHub's GPG key.
       - name: Create or update version PR
-        uses: changesets/action/version@cae63535198362487bf613d7940dbc74b12d7313 # v2
+        uses: changesets/action/version@d0ee272882939fa35f22d979828acb7e61e0bd47 # v2.0.0-next.4
         with:
           github-token: ${{ steps.bot.outputs.token }}
-          version: bun run ci:version
+          script: bun run ci:version
           commit-message: "chore: update versions"
-          title: "chore: update versions"
+          pr-title: "chore: update versions"
