@@ -3,15 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "description": "A monorepo of pi extensions",
-  "homepage": "https://codeberg.org/aarvay/pi-packs#readme",
+  "homepage": "https://github.com/aarvay/pi-packs#readme",
   "bugs": {
-    "url": "https://codeberg.org/aarvay/pi-packs/issues"
+    "url": "https://github.com/aarvay/pi-packs/issues"
   },
   "license": "MIT",
   "author": "aarvay",
   "repository": {
     "type": "git",
-    "url": "git+https://codeberg.org/aarvay/pi-packs.git"
+    "url": "git+https://github.com/aarvay/pi-packs.git"
   },
   "workspaces": [
     "packages/*"

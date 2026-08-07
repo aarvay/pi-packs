@@ -49,7 +49,7 @@ This repo uses [Changesets](https://github.com/changesets/changesets) for versio
 2. Select affected packages and bump type (`patch`, `minor`, or `major`)
 3. Write a changeset summary describing the change
 4. Commit the generated `.changeset/*.md` file with your PR
-5. On merge to `main`, the Forgejo Actions workflow will:
+5. On merge to `main`, the GitHub Actions workflow will:
    - Bump package versions and update changelogs
    - Commit the version bump to `main`
    - Publish to npm

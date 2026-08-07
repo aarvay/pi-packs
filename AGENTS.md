@@ -17,8 +17,8 @@ Default to using Bun instead of Node.js.
 
 ## CI/CD
 
-This repo's primary forge is **Codeberg** (Forgejo), not GitHub. CI workflows
-live exclusively in `.forgejo/workflows/`. There is no `.github/` directory. Do
-not assume GitHub Actions or recommend GitHub-specific workflows.
+This repo's primary forge is **GitHub**. CI workflows live exclusively in
+`.github/workflows/`. There is no `.forgejo/` directory. Do not assume
+Forgejo/Codeberg Actions or recommend Forgejo-specific workflows.
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
